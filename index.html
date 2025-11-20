@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes" />
+  <title>GIS Day — Map Your Memory</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    * {box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:0;padding:0;background:#f6f8fb;color:#0b1220;-webkit-font-smoothing:antialiased}
+    header{display:flex;gap:16px;align-items:center;padding:18px;background:linear-gradient(90deg,#0b74de22,#0b74de11);flex-wrap:wrap}
+    .doodle{width:220px;height:80px;cursor:pointer;flex-shrink:0}
+    .container{display:grid;grid-template-columns:360px 1fr;gap:18px;padding:18px}
+    .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(11,18,32,0.06)}
+    form label{display:block;font-weight:600;margin-top:8px}
+    input,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e6eef8;margin-top:6px}
+    button{margin-top:10px;padding:10px 12px;border-radius:9px;border:0;background:#0b74de;color:#fff;font-weight:700;cursor:pointer}
+    #map{height:78vh;border-radius:12px}
+    footer{padding:12px;text-align:center;color:#5b6b7a}
+    .tiny{font-size:12px;color:#6b7a8b}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .btn-ghost{background:transparent;border:1px solid #cfe3ff;color:#0b74de;padding:8px 10px;border-radius:8px}
+    .search-container{display:flex;gap:8px;margin-top:6px;position:relative}
+    .search-container input{margin-top:0;flex:1}
+    .search-container button{margin-top:0;padding:8px 12px;font-size:14px}
+    .autocomplete-suggestions{position:absolute;top:100%;left:0;right:68px;background:#fff;border:1px solid #e6eef8;border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(11,18,32,0.12);z-index:1000;display:none}
+    .autocomplete-suggestions.show{display:block}
+    .suggestion-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f4f8;transition:background 0.15s}
+    .suggestion-item:last-child{border-bottom:none}
+    .suggestion-item:hover{background:#f6f8fb}
+    .suggestion-item .place-name{font-weight:600;color:#0b1220;font-size:14px}
+    .suggestion-item .place-detail{font-size:12px;color:#6b7a8b;margin-top:2px}
+    /* Popup carousel styles */
+    .popup-carousel{min-width:200px}
+    .popup-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e6eef8}
+    .popup-counter{font-size:11px;color:#6b7a8b;font-weight:600}
+    .popup-nav{display:flex;gap:4px}
+    .popup-nav button{background:#0b74de;color:#fff;border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:14px;font-weight:bold;display:flex;align-items:center;justify-content:center}
+    .popup-nav button:hover{background:#095bb5}
+    .popup-nav button:disabled{background:#ccc;cursor:not-allowed}
+    .popup-content{margin-top:8px}
+    /* Mobile responsive styles */
+    @media (max-width: 768px) {
+      header{padding:12px;gap:12px}
+      .doodle{width:160px;height:60px}
+      header h2{font-size:18px;margin:0}
+      .tiny{font-size:11px}
+      .container{grid-template-columns:1fr;gap:12px;padding:12px}
+      aside.card{order:2}
+      section{order:1}
+      #map{height:50vh;min-height:300px}
+      input,textarea,button{font-size:16px;padding:10px}
+      .controls{justify-content:stretch}
+      .controls button{flex:1;min-width:0;padding:10px 8px;font-size:14px}
+      .search-container button{padding:10px 12px;font-size:14px}
+      .autocomplete-suggestions{right:78px;font-size:14px}
+      .popup-nav button{width:32px;height:32px;font-size:16px}
+      .card{padding:12px}
+      form label{font-size:14px}
+    }
+    @media (max-width: 480px) {
+      header{flex-direction:column;align-items:flex-start}
+      .doodle{width:140px;height:50px}
+      header h2{font-size:16px}
+      #map{height:40vh;min-height:250px}
+      .controls{flex-direction:column}
+      .controls button{width:100%}
+    }
+    /* Touch improvements */
+    @media (hover: none) and (pointer: coarse) {
+      button{min-height:44px}
+      .suggestion-item{padding:12px 14px}
+      .popup-nav button{width:36px;height:36px}
+    }
+    /* Simple doodle letter animation */
+    .letter{transform-origin:center;display:inline-block}
+    @keyframes bounce {0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+    .letter.g{animation: bounce 2s infinite}
+    .letter.i{animation: bounce 2s .2s infinite}
+    .letter.s{animation: bounce 2s .4s infinite}
+    .letter.d{animation: bounce 2s .6s infinite}
+    .letter.a{animation: bounce 2s .8s infinite}
+    .letter.y{animation: bounce 2s 1s infinite}
+    /* Loading overlay */
+    .loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);display:none;align-items:center;justify-content:center;border-radius:12px;z-index:1000}
+    .loading-spinner{width:40px;height:40px;border:4px solid #e6eef8;border-top:4px solid #0b74de;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h2 style="margin:0">Map Your Memory — GIS Day</h2>
+      <div class="tiny">Add a memory (lat, long, short message). Pins appear live on the shared map.</div>
+    </div>
+  </header>
+
+  <main id="app" class="container">
+    <aside class="card">
+      <h3 style="margin-top:0">Add your memorable place</h3>
+      <form id="memoryForm">
+        <label for="name">Your name (optional)</label>
+        <input id="name" placeholder="e.g., A. Kumar" />
+
+        <label for="address">Search for an address</label>
+        <div class="search-container">
+          <input id="address" type="text" placeholder="e.g., Times Square, New York" autocomplete="off" />
+          <button type="button" id="searchAddress">Search</button>
+          <div id="suggestions" class="autocomplete-suggestions"></div>
+        </div>
+
+        <label for="lat">Latitude</label>
+        <input id="lat" placeholder="e.g., 37.7749" required />
+
+        <label for="lng">Longitude</label>
+        <input id="lng" placeholder="e.g., -122.4194" required />
+
+        <label for="message">Message (max 250 chars)</label>
+        <textarea id="message" rows="4" maxlength="250" placeholder="Why is this place special?" required></textarea>
+
+        <div class="controls">
+          <button type="submit">Add to Map</button>
+          <button type="button" id="useMyLocation" class="btn-ghost">Use my location</button>
+          <button type="button" id="resetForm" class="btn-ghost">Reset</button>
+          <button type="button" id="exportCSV" class="btn-ghost">Export CSV</button>
+        </div>
+      </form>
+
+      <hr />
+      <div class="tiny">Quick tips:</div>
+      <ul class="tiny">
+        <li>Enter coordinates in decimal degrees (lat, lng).</li>
+        <li>If you don’t know coordinates, press <b>Use my location</b> or search on Google Maps and copy lat/lng.</li>
+        <li>Keep messages short and friendly — all pins are public for this event.</li>
+      </ul>
+
+      <div style="margin-top:12px">
+        <strong>Top places</strong>
+        <div id="topResults" class="tiny">No data yet.</div>
+      </div>
+
+    </aside>
+
+    <section>
+      <div id="map" class="card" style="position:relative">
+        <div id="loadingOverlay" class="loading-overlay">
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="tiny">Made for GIS Day — sample implementation. After the event, you can export and analyze entries to find the most memorable city or country.</div>
+  </footer>
+
+  <!-- Dependencies -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- Supabase (Open Source Firebase Alternative) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module">
+    // ====== IMPORTANT ======
+    // Create a FREE Supabase project at https://supabase.com/dashboard
+    // 1. Create new project
+    // 2. Go to Settings > API
+    // 3. Copy your Project URL and anon/public key
+    // 4. Create a table called 'memories' with columns:
+    //    - id (int8, primary key, auto-increment)
+    //    - name (text, nullable)
+    //    - latitude (float8)
+    //    - longitude (float8)
+    //    - message (text)
+    //    - place_name (text, nullable)
+    //    - timestamp (int8)
+    //    - submission_id (int8, nullable)
+    //    - created_at (timestamp with time zone, default: now())
+    // 5. Enable Row Level Security and add policies for public read/insert
+    
+    // --- CONFIG: paste your Supabase config here ---
+    const SUPABASE_URL = 'https://mmokmrvmwbzulpjoztap.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tb2ttcnZtd2J6dWxwam96dGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzE4MzcsImV4cCI6MjA3OTIwNzgzN30.yACvL048AnNGpkvGSkdYKWxr6k3teSNTCuRWATIRPKY';
+    // --------------------------------------
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ---------- Map setup ----------
+    const isMobile = window.innerWidth <= 768;
+    const map = L.map('map', { 
+      zoomControl: true,
+      tap: true,
+      touchZoom: true,
+      dragging: true,
+      scrollWheelZoom: !isMobile
+    }).setView([20,0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // markersLayer to manage markers
+    const markersLayer = L.layerGroup().addTo(map);
+
+    // keep local cache for simple stats
+    let cache = [];
+    let pendingSubmission = null;
+
+    // Function to process and display memories
+    function processMemories(memories) {
+      markersLayer.clearLayers();
+      cache = memories;
+      
+      // Group memories by location (rounded to 5 decimal places for proximity)
+      const locationGroups = new Map();
+      
+      memories.forEach(d => {
+        if (typeof d.latitude === 'number' && typeof d.longitude === 'number'){
+          // Create a key based on rounded coordinates
+          const locationKey = `${d.latitude.toFixed(5)},${d.longitude.toFixed(5)}`;
+          
+          if (!locationGroups.has(locationKey)) {
+            locationGroups.set(locationKey, []);
+          }
+          locationGroups.get(locationKey).push(d);
+        }
+      });
+      
+      // Create markers for each location group
+      locationGroups.forEach((memories, locationKey) => {
+        const firstMemory = memories[0];
+        const mk = L.marker([firstMemory.latitude, firstMemory.longitude]);
+        
+        if (memories.length === 1) {
+          // Single memory - simple popup
+          const d = memories[0];
+          mk.bindPopup(`<b>${escapeHtml(d.name || 'Anonymous')}</b><br>${escapeHtml(d.message)}<br><small class='tiny'>${escapeHtml(d.place_name || '')}</small>`, {
+            maxWidth: isMobile ? 250 : 300,
+            autoPan: true,
+            autoPanPadding: [50, 50]
+          });
+        } else {
+          // Multiple memories - carousel popup
+          let currentIndex = 0;
+          let clickHandler = null;
+          
+          const updatePopupContent = () => {
+            const d = memories[currentIndex];
+            return `
+              <div class="popup-carousel" data-location="${locationKey}">
+                <div class="popup-header">
+                  <span class="popup-counter">${currentIndex + 1} of ${memories.length} memories</span>
+                  <div class="popup-nav">
+                    <button class="popup-prev">◀</button>
+                    <button class="popup-next">▶</button>
+                  </div>
+                </div>
+                <div class="popup-content">
+                  <b>${escapeHtml(d.name || 'Anonymous')}</b><br>
+                  ${escapeHtml(d.message)}<br>
+                  <small class='tiny'>${escapeHtml(d.place_name || '')}</small>
+                </div>
+              </div>
+            `;
+          };
+          
+          mk.bindPopup(updatePopupContent(), {
+            maxWidth: isMobile ? 250 : 300,
+            autoPan: true,
+            autoPanPadding: [50, 50]
+          });
+          
+          // Handle navigation
+          mk.on('popupopen', () => {
+            const popup = mk.getPopup();
+            const popupContainer = popup.getElement();
+            
+            // Remove previous handler if exists
+            if (clickHandler) {
+              popupContainer.removeEventListener('click', clickHandler);
+            }
+            
+            // Create new handler
+            clickHandler = (e) => {
+              const target = e.target;
+              
+              if (target.classList.contains('popup-prev')) {
+                e.stopPropagation();
+                currentIndex = currentIndex === 0 ? memories.length - 1 : currentIndex - 1;
+                popup.setContent(updatePopupContent());
+              } else if (target.classList.contains('popup-next')) {
+                e.stopPropagation();
+                currentIndex = currentIndex === memories.length - 1 ? 0 : currentIndex + 1;
+                popup.setContent(updatePopupContent());
+              }
+            };
+            
+            // Add handler
+            popupContainer.addEventListener('click', clickHandler);
+          });
+          
+          // Clean up on close
+          mk.on('popupclose', () => {
+            const popupContainer = mk.getPopup().getElement();
+            if (clickHandler) {
+              popupContainer.removeEventListener('click', clickHandler);
+              clickHandler = null;
+            }
+            currentIndex = 0;
+          });
+        }
+        
+        mk.addTo(markersLayer);
+      });
+      
+      updateTopResults();
+    }
+
+    // Load initial data and subscribe to realtime updates
+    async function loadMemories() {
+      const { data, error } = await supabase
+        .from('memories')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading memories:', error);
+        loadingOverlay.style.display = 'none';
+        return;
+      }
+      
+      processMemories(data || []);
+      
+      // Hide loading overlay after data is processed
+      if (loadingOverlay.style.display === 'flex') {
+        loadingOverlay.style.display = 'none';
+      }
+    }
+
+    // Subscribe to realtime changes
+    const memoriesChannel = supabase
+      .channel('memories-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'memories' },
+        () => {
+          loadMemories();
+        }
+      )
+      .subscribe();
+
+    // Initial load
+    loadMemories();
+
+    // ---------- Form handling ----------
+    const form = document.getElementById('memoryForm');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const lat = parseFloat(document.getElementById('lat').value.trim());
+      const lng = parseFloat(document.getElementById('lng').value.trim());
+      const message = document.getElementById('message').value.trim();
+      if (!isFinite(lat) || !isFinite(lng)) return alert('Please enter valid numeric coordinates.');
+      
+      // Show loading
+      loadingOverlay.style.display = 'flex';
+      const submissionId = Date.now();
+      pendingSubmission = submissionId;
+      
+      // Optional reverse geocode to get place name (uses Nominatim). Be mindful of rate limits.
+      let placeName = '';
+      try{
+        const rr = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+        if (rr.ok){
+          const j = await rr.json();
+          placeName = j.display_name || '';
+        }
+      }catch(err){console.warn('Reverse geocode failed', err)}
+
+      // Save to Supabase
+      try{
+        const { error } = await supabase
+          .from('memories')
+          .insert([{
+            name: name || null,
+            latitude: lat,
+            longitude: lng,
+            message,
+            place_name: placeName,
+            timestamp: Date.now(),
+            submission_id: submissionId
+          }]);
+        
+        if (error) throw error;
+        
+        // Hide loading immediately after successful insert
+        loadingOverlay.style.display = 'none';
+        
+        form.reset();
+        alert('Thanks — your memory is added to the map!');
+      }catch(err){
+        console.error(err);
+        alert('There was an error saving your memory. Check the console.');
+        // Hide loading on error
+        loadingOverlay.style.display = 'none';
+      }
+    });
+
+    // Autocomplete functionality
+    const addressInput = document.getElementById('address');
+    const suggestionsDiv = document.getElementById('suggestions');
+    let debounceTimer;
+
+    // Function to update lat/lng with a location
+    function selectLocation(lat, lon, displayName) {
+      document.getElementById('lat').value = parseFloat(lat).toFixed(6);
+      document.getElementById('lng').value = parseFloat(lon).toFixed(6);
+      map.setView([lat, lon], 13);
+      suggestionsDiv.classList.remove('show');
+      suggestionsDiv.innerHTML = '';
+    }
+
+    // Fetch autocomplete suggestions
+    async function fetchSuggestions(query) {
+      if (!query || query.length < 3) {
+        suggestionsDiv.classList.remove('show');
+        suggestionsDiv.innerHTML = '';
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+        if (!response.ok) throw new Error('Search failed');
+        
+        const results = await response.json();
+        
+        if (results.length === 0) {
+          suggestionsDiv.innerHTML = '<div class="suggestion-item" style="cursor:default"><div class="place-detail">No results found</div></div>';
+          suggestionsDiv.classList.add('show');
+          return;
+        }
+        
+        suggestionsDiv.innerHTML = results.map(result => {
+          const parts = result.display_name.split(',');
+          const mainName = parts.slice(0, 2).join(',');
+          const details = parts.slice(2).join(',');
+          return `<div class="suggestion-item" data-lat="${result.lat}" data-lon="${result.lon}" data-name="${escapeHtml(result.display_name)}">
+            <div class="place-name">${escapeHtml(mainName)}</div>
+            <div class="place-detail">${escapeHtml(details)}</div>
+          </div>`;
+        }).join('');
+        
+        suggestionsDiv.classList.add('show');
+        
+        // Add click handlers to suggestions
+        suggestionsDiv.querySelectorAll('.suggestion-item').forEach(item => {
+          if (item.dataset.lat) {
+            item.addEventListener('click', () => {
+              addressInput.value = item.dataset.name;
+              selectLocation(item.dataset.lat, item.dataset.lon, item.dataset.name);
+            });
+          }
+        });
+      } catch (err) {
+        console.error('Autocomplete error:', err);
+      }
+    }
+
+    // Debounced input handler
+    addressInput.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchSuggestions(e.target.value.trim());
+      }, 300);
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-container')) {
+        suggestionsDiv.classList.remove('show');
+      }
+    });
+
+    // Search for address using Nominatim geocoding
+    document.getElementById('searchAddress').addEventListener('click', async ()=>{
+      const address = document.getElementById('address').value.trim();
+      if (!address) return alert('Please enter an address to search.');
+      
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+        if (!response.ok) throw new Error('Search failed');
+        
+        const results = await response.json();
+        if (results.length === 0) {
+          alert('No results found for this address. Please try a different search.');
+          return;
+        }
+        
+        const location = results[0];
+        selectLocation(location.lat, location.lon, location.display_name);
+        addressInput.value = location.display_name;
+        alert(`Found: ${location.display_name}`);
+      } catch (err) {
+        console.error('Geocoding error:', err);
+        alert('Error searching for address. Please try again.');
+      }
+    });
+
+    // Use browser geolocation
+    document.getElementById('useMyLocation').addEventListener('click', ()=>{
+      if (!navigator.geolocation) return alert('Geolocation not supported by your browser.');
+      navigator.geolocation.getCurrentPosition((pos)=>{
+        document.getElementById('lat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('lng').value = pos.coords.longitude.toFixed(6);
+      }, (err)=>{alert('Could not get your location: '+err.message)});
+    });
+
+    // Reset form
+    document.getElementById('resetForm').addEventListener('click', ()=>{
+      form.reset();
+    });
+
+    // Export CSV
+    document.getElementById('exportCSV').addEventListener('click', async ()=>{
+      try{
+        const { data, error } = await supabase
+          .from('memories')
+          .select('*')
+          .order('timestamp', { ascending: false });
+        
+        if (error) throw error;
+        
+        const csv = toCSV(data || []);
+        const blob = new Blob([csv], {type:'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='memories.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      }catch(err){console.error(err); alert('Could not export data: check console.')}
+    });
+
+    // ---------- Helpers ----------
+    function toCSV(arr){
+      if (!arr.length) return '';
+      const keys = Object.keys(arr[0]);
+      const lines = [keys.join(',')];
+      for(const r of arr){
+        const vals = keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`);
+        lines.push(vals.join(','));
+      }
+      return lines.join('\n');
+    }
+
+    function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c)); }
+
+    // Compute simple top countries/cities by using place_name if present
+    function updateTopResults(){
+      const counts = {countries:{}, places:{}};
+      for(const r of cache){
+        const pn = r.place_name || '';
+        // Try to extract country from display_name (comma-separated from Nominatim)
+        const parts = pn.split(',').map(s=>s.trim()).filter(Boolean);
+        const country = parts.length? parts[parts.length-1] : null;
+        if (country){ counts.countries[country] = (counts.countries[country]||0)+1 }
+        if (parts.length>=2){ const city = parts[0]; counts.places[city] = (counts.places[city]||0)+1 }
+      }
+      const topCountry = Object.entries(counts.countries).sort((a,b)=>b[1]-a[1])[0];
+      const topPlace = Object.entries(counts.places).sort((a,b)=>b[1]-a[1])[0];
+      const el = document.getElementById('topResults');
+      if (!topCountry) el.innerText = 'No entries yet.';
+      else el.innerHTML = `<div>Top country: <b>${topCountry[0]}</b> (${topCountry[1]} pins)</div><div>Top place: <b>${topPlace? topPlace[0] : '—'}</b> (${topPlace? topPlace[1] : 0})</div>`;
+    }
+
+    // small UX: scroll map to new marker when user clicks popup in list (not implemented here)
+
+  </script>
+</body>
+</html>
