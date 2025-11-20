@@ -18,8 +18,9 @@
     #map{height:78vh;border-radius:12px}
     footer{padding:12px;text-align:center;color:#5b6b7a}
     .tiny{font-size:12px;color:#6b7a8b}
-    .home-button{position:absolute;top:10px;left:10px;z-index:1000;background:#fff;border:2px solid rgba(0,0,0,0.2);border-radius:4px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,0.4);transition:background 0.2s}
+    .home-button{position:absolute;top:80px;left:10px;z-index:1000;background:#fff;border:2px solid rgba(0,0,0,0.2);border-radius:4px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,0.65)}
     .home-button:hover{background:#f4f4f4}
+    .home-button svg{color:#333}
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .btn-ghost{background:transparent;border:1px solid #cfe3ff;color:#0b74de;padding:8px 10px;border-radius:8px}
     .search-container{display:flex;gap:8px;margin-top:6px;position:relative}
@@ -390,7 +391,7 @@
 
       // Save to Supabase
       try{
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('memories')
           .insert([{
             name: name || null,
@@ -400,9 +401,16 @@
             place_name: placeName,
             timestamp: Date.now(),
             submission_id: submissionId
-          }]);
+          }])
+          .select();
         
         if (error) throw error;
+        
+        // Immediately reload memories to show the new pin
+        await loadMemories();
+        
+        // Zoom to the new location
+        map.setView([lat, lng], 13);
         
         // Hide loading immediately after successful insert
         loadingOverlay.style.display = 'none';
