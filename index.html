@@ -88,14 +88,39 @@
     .loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);display:none;align-items:center;justify-content:center;border-radius:12px;z-index:1000}
     .loading-spinner{width:40px;height:40px;border:4px solid #e6eef8;border-top:4px solid #0b74de;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    /* Message rail styles */
+    .message-rail-container{background:#fff;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(11,18,32,0.06);margin-bottom:18px;overflow:hidden}
+    .message-rail-container h3{margin:0 0 12px 0;font-size:18px;color:#0b1220}
+    .top-cities{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .city-badge{background:linear-gradient(135deg,#0b74de,#095bb5);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(11,116,222,0.3)}
+    .city-badge .count{background:rgba(255,255,255,0.3);padding:2px 8px;border-radius:10px;margin-left:6px;font-size:11px}
+    .message-rail{position:relative;height:80px;overflow:hidden;background:#f6f8fb;border-radius:8px;padding:8px}
+    .message-track{display:flex;gap:16px;animation:scroll-rail 60s linear infinite;will-change:transform}
+    .message-track:hover{animation-play-state:paused}
+    .message-item{min-width:300px;background:#fff;padding:12px 16px;border-radius:8px;box-shadow:0 2px 6px rgba(11,18,32,0.08);border-left:3px solid #0b74de;flex-shrink:0;transition:all 0.3s}
+    .message-item:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(11,18,32,0.15)}
+    .message-item.new-message{animation:popIn 0.5s ease-out}
+    .message-author{font-weight:700;color:#0b74de;font-size:13px;margin-bottom:4px}
+    .message-text{font-size:13px;color:#0b1220;line-height:1.4;margin-bottom:4px}
+    .message-location{font-size:11px;color:#6b7a8b}
+    @keyframes scroll-rail{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    @keyframes popIn{0%{opacity:0;transform:scale(0.8)}100%{opacity:1;transform:scale(1)}}
+    @media (max-width: 768px){
+      .message-rail-container{margin-bottom:12px;padding:12px}
+      .message-rail{height:70px}
+      .message-item{min-width:250px;padding:10px 12px}
+      .top-cities{gap:8px}
+      .city-badge{font-size:12px;padding:6px 12px}
+    }
   </style>
 </head>
 <body>
   <header>
-    <div>
+    <div style="flex:1">
       <h2 style="margin:0">Map Your Memory — GIS Day</h2>
       <div class="tiny">Add a memory (lat, long, short message). Pins appear live on the shared map.</div>
     </div>
+    <a href="messages.html" target="_blank" style="padding:10px 20px;background:#0b74de;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;white-space:nowrap">View Live Messages →</a>
   </header>
 
   <main id="app" class="container">
@@ -584,9 +609,13 @@
       const topCountry = Object.entries(counts.countries).sort((a,b)=>b[1]-a[1])[0];
       const topPlace = Object.entries(counts.places).sort((a,b)=>b[1]-a[1])[0];
       const el = document.getElementById('topResults');
-      if (!topCountry) el.innerText = 'No entries yet.';
-      else el.innerHTML = `<div>Top country: <b>${topCountry[0]}</b> (${topCountry[1]} pins)</div><div>Top place: <b>${topPlace? topPlace[0] : '—'}</b> (${topPlace? topPlace[1] : 0})</div>`;
+      if (el) {
+        if (!topCountry) el.innerText = 'No entries yet.';
+        else el.innerHTML = `<div>Top country: <b>${topCountry[0]}</b> (${topCountry[1]} pins)</div><div>Top place: <b>${topPlace? topPlace[0] : '—'}</b> (${topPlace? topPlace[1] : 0})</div>`;
+      }
     }
+
+
 
     // small UX: scroll map to new marker when user clicks popup in list (not implemented here)
 

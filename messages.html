@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes" />
+  <title>GIS Day — Live Messages</title>
+  <style>
+    * {box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:0;padding:0;background:#f6f8fb;color:#0b1220;-webkit-font-smoothing:antialiased}
+    header{display:flex;gap:16px;align-items:center;padding:18px;background:linear-gradient(90deg,#0b74de22,#0b74de11);flex-wrap:wrap}
+    header h2{margin:0;font-size:24px}
+    .tiny{font-size:12px;color:#6b7a8b}
+    .container{max-width:1400px;margin:0 auto;padding:18px}
+    .message-rail-container{background:#fff;border-radius:12px;padding:24px;box-shadow:0 6px 18px rgba(11,18,32,0.06);margin-bottom:24px}
+    .message-rail-container h3{margin:0 0 16px 0;font-size:20px;color:#0b1220}
+    .top-cities{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+    .city-badge{background:linear-gradient(135deg,#0b74de,#095bb5);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(11,116,222,0.3)}
+    .city-badge .count{background:rgba(255,255,255,0.3);padding:3px 10px;border-radius:10px;margin-left:8px;font-size:12px}
+    .message-rail{position:relative;height:100px;overflow:hidden;background:#f6f8fb;border-radius:8px;padding:12px}
+    .message-track{display:flex;gap:16px;animation:scroll-rail 60s linear infinite;will-change:transform}
+    .message-track:hover{animation-play-state:paused}
+    .message-item{min-width:350px;background:#fff;padding:16px 20px;border-radius:8px;box-shadow:0 2px 6px rgba(11,18,32,0.08);border-left:4px solid #0b74de;flex-shrink:0;transition:all 0.3s}
+    .message-item:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(11,18,32,0.15)}
+    .message-item.new-message{animation:popIn 0.5s ease-out}
+    .message-author{font-weight:700;color:#0b74de;font-size:14px;margin-bottom:6px}
+    .message-text{font-size:14px;color:#0b1220;line-height:1.5;margin-bottom:6px}
+    .message-location{font-size:12px;color:#6b7a8b}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:24px}
+    .stat-card{background:#fff;padding:20px;border-radius:12px;box-shadow:0 6px 18px rgba(11,18,32,0.06);border-top:4px solid #0b74de}
+    .stat-card h4{margin:0 0 8px 0;font-size:14px;color:#6b7a8b;text-transform:uppercase;letter-spacing:0.5px}
+    .stat-card .value{font-size:32px;font-weight:700;color:#0b1220}
+    .back-link{display:inline-block;margin-bottom:16px;padding:8px 16px;background:#0b74de;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;transition:background 0.2s}
+    .back-link:hover{background:#095bb5}
+    @keyframes scroll-rail{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    @keyframes popIn{0%{opacity:0;transform:scale(0.8)}100%{opacity:1;transform:scale(1)}}
+    @media (max-width: 768px){
+      header h2{font-size:20px}
+      .message-rail-container{padding:16px}
+      .message-rail{height:80px;padding:8px}
+      .message-item{min-width:280px;padding:12px 16px}
+      .top-cities{gap:8px}
+      .city-badge{font-size:13px;padding:8px 14px}
+      .stat-card .value{font-size:24px}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h2>🌍 GIS Day — Live Messages & Statistics</h2>
+      <div class="tiny">Real-time memory updates from around the world</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <a href="index.html" class="back-link">← Back to Map</a>
+    
+    <div class="message-rail-container">
+      <h3>🏙️ Top 5 Cities</h3>
+      <div id="topCities" class="top-cities">
+        <div class="city-badge">Loading...</div>
+      </div>
+      
+      <h3 style="margin-top:24px">📨 Latest Memories</h3>
+      <div class="message-rail">
+        <div id="messageTrack" class="message-track">
+          <div class="message-item"><div class="message-text">Loading messages...</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h4>Total Memories</h4>
+        <div class="value" id="totalMemories">0</div>
+      </div>
+      <div class="stat-card">
+        <h4>Countries</h4>
+        <div class="value" id="totalCountries">0</div>
+      </div>
+      <div class="stat-card">
+        <h4>Cities</h4>
+        <div class="value" id="totalCities">0</div>
+      </div>
+      <div class="stat-card">
+        <h4>Top Country</h4>
+        <div class="value" id="topCountry" style="font-size:20px">—</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module">
+    const SUPABASE_URL = 'https://mmokmrvmwbzulpjoztap.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tb2ttcnZtd2J6dWxwam96dGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzE4MzcsImV4cCI6MjA3OTIwNzgzN30.yACvL048AnNGpkvGSkdYKWxr6k3teSNTCuRWATIRPKY';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let cache = [];
+
+    function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c)); }
+
+    // Load memories from Supabase
+    async function loadMemories() {
+      const { data, error } = await supabase
+        .from('memories')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading memories:', error);
+        return;
+      }
+      
+      cache = data || [];
+      updateDisplay();
+    }
+
+    // Update all displays
+    function updateDisplay() {
+      const counts = {countries:{}, places:{}};
+      
+      for(const r of cache){
+        const pn = r.place_name || '';
+        const parts = pn.split(',').map(s=>s.trim()).filter(Boolean);
+        const country = parts.length? parts[parts.length-1] : null;
+        if (country){ counts.countries[country] = (counts.countries[country]||0)+1 }
+        if (parts.length>=2){ const city = parts[0]; counts.places[city] = (counts.places[city]||0)+1 }
+      }
+      
+      updateTopCities(counts.places);
+      updateMessageRail();
+      updateStats(counts);
+    }
+
+    // Update top 5 cities display
+    function updateTopCities(placeCounts){
+      const topCitiesEl = document.getElementById('topCities');
+      const top5 = Object.entries(placeCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+      
+      if (top5.length === 0){
+        topCitiesEl.innerHTML = '<div class="city-badge">No cities yet</div>';
+        return;
+      }
+      
+      topCitiesEl.innerHTML = top5.map(([city, count]) => 
+        `<div class="city-badge">${escapeHtml(city)}<span class="count">${count}</span></div>`
+      ).join('');
+    }
+
+    // Update message rail with scrolling messages
+    function updateMessageRail(){
+      const trackEl = document.getElementById('messageTrack');
+      const sortedMessages = [...cache].sort((a,b) => b.timestamp - a.timestamp);
+      
+      if (sortedMessages.length === 0){
+        trackEl.innerHTML = '<div class="message-item"><div class="message-text">No memories yet. Be the first to add one!</div></div>';
+        return;
+      }
+      
+      // Duplicate messages for seamless loop
+      const messagesToShow = sortedMessages.slice(0, 20);
+      const duplicatedMessages = [...messagesToShow, ...messagesToShow];
+      
+      trackEl.innerHTML = duplicatedMessages.map(m => {
+        const cityName = m.place_name ? m.place_name.split(',')[0].trim() : 'Unknown Location';
+        return `
+          <div class="message-item">
+            <div class="message-author">${escapeHtml(m.name || 'Anonymous')}</div>
+            <div class="message-text">${escapeHtml(m.message)}</div>
+            <div class="message-location">📍 ${escapeHtml(cityName)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Add new message with pop-in animation
+    function addNewMessageToRail(message){
+      const trackEl = document.getElementById('messageTrack');
+      const cityName = message.place_name ? message.place_name.split(',')[0].trim() : 'Unknown Location';
+      
+      const newItem = document.createElement('div');
+      newItem.className = 'message-item new-message';
+      newItem.innerHTML = `
+        <div class="message-author">${escapeHtml(message.name || 'Anonymous')}</div>
+        <div class="message-text">${escapeHtml(message.message)}</div>
+        <div class="message-location">📍 ${escapeHtml(cityName)}</div>
+      `;
+      
+      trackEl.insertBefore(newItem, trackEl.firstChild);
+      
+      setTimeout(() => {
+        newItem.classList.remove('new-message');
+      }, 500);
+    }
+
+    // Update statistics
+    function updateStats(counts) {
+      document.getElementById('totalMemories').textContent = cache.length;
+      document.getElementById('totalCountries').textContent = Object.keys(counts.countries).length;
+      document.getElementById('totalCities').textContent = Object.keys(counts.places).length;
+      
+      const topCountry = Object.entries(counts.countries).sort((a,b)=>b[1]-a[1])[0];
+      document.getElementById('topCountry').textContent = topCountry ? topCountry[0] : '—';
+    }
+
+    // Subscribe to realtime changes
+    const memoriesChannel = supabase
+      .channel('messages-page-changes')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'memories' },
+        (payload) => {
+          if (payload.new) {
+            addNewMessageToRail(payload.new);
+          }
+          loadMemories();
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'memories' },
+        () => {
+          loadMemories();
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'memories' },
+        () => {
+          loadMemories();
+        }
+      )
+      .subscribe();
+
+    // Initial load
+    loadMemories();
+  </script>
+</body>
+</html>
